@@ -54,6 +54,7 @@ run:
   accum_grad_iters: 1
   grad_norm_clip: null
 
+  split_file: "splits/seed42.json"
   output_dir: "../run"
   tag: "E1_weighted"
 

@@ -1,5 +1,6 @@
 import os
 import shutil
+import json
 from pathlib import Path
 
 from tqdm import tqdm
@@ -69,7 +70,16 @@ def get_datasets(config,transforms) -> dict:
     def agiqa3k_split_fn(info):
         count = int(0.8 * 300)
 
-        indices = np.random.permutation(300)
+        split_file = config.run.get("split_file", None)
+        if split_file and os.path.exists(split_file):
+            # 固定划分：直接加载已保存的 seed42 划分，不再随机重排
+            with open(split_file) as f:
+                split = json.load(f)
+            assignment = split["assignment"]
+            indices = None
+        else:
+            assignment = None
+            indices = np.random.permutation(300)
 
         train_info = []
         val_info = []
@@ -79,7 +89,14 @@ def get_datasets(config,transforms) -> dict:
             image_name_split = image_name.split("_")
             idx = int(image_name_split[-1])
 
-            if idx in indices[:count]:
+            if assignment is not None:
+                side = assignment.get(info.iloc[i, 0], None)
+                if side is None:
+                    side = "train" if idx in set(split["permutation"][:count]) else "val"
+            else:
+                side = "train" if idx in indices[:count] else "val"
+
+            if side == "train":
                 train_info.append(i)
             else:
                 val_info.append(i)

@@ -59,7 +59,12 @@ pip install -e . --no-deps
 python prepare_data.py   # 用 ../data/aigc_qa_3k/data.csv 生成 mos_joint.xlsx
 ```
 
-## 运行实验（同一 seed 42，单次 80/20 hold-out）
+## 运行实验（固定 seed-42 划分）
+
+数据划分已**固化为文件** `splits/seed42.json`（seed 42，80/20，按 300 个内容 ID
+整体切分，同一内容的生成图不会跨集）。各配置通过 `run.split_file` 加载该固定划分，
+**不再每次随机重排**——因此无论 `--seed` 传什么，训练/验证集合都完全一致，保证
+E0/E1/E2 及后续实验公平可比。
 
 ```bash
 # E0: baseline
