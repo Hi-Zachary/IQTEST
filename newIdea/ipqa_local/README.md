@@ -20,9 +20,9 @@ ipqa_local/
 │       ├── ipiqa_quick.yaml       # E0: baseline（20 epoch quick）
 │       ├── ipiqa_ours.yaml        # E2: Full Ours
 │       └── ipiqa_ours_noattn.yaml # E1: +Weighted Local（无 attention）
-├── cache/                         # RN50.pt + AGIQA-3K 图片/标注（git 忽略）
+├── ../data/                       # 训练数据（在 ipqa_local 上级 newIdea/data/，git 忽略）
 │   ├── ckpt/clip/openai/resnet/RN50.pt   # CLIP RN50 权重
-│   └── data/aigc_qa_3k/
+│   └── aigc_qa_3k/
 │       ├── AGIQA-3K/                     # 2982 张图片
 │       ├── data.csv                      # 官方标注
 │       └── mos_joint.xlsx                # IP-IQA 需要的标注格式
@@ -49,12 +49,14 @@ pip install -e . --no-deps
 > （RTX 40 系）和 Python 3.10+ 上不可靠，故用上面的现代版本；其余依赖直接装。
 > `pip install -e . --no-deps` 只注册 `ipiqa` 包，避免重复拉 torch。
 
-## 数据准备（如果服务器上没有 cache）
+## 数据准备（如果服务器上没有 ../data）
+
+训练数据统一放在 `ipqa_local` 上级的 `../data/`（即 `newIdea/data/`）：
 
 ```bash
-# 1) 图片解压到 cache/data/aigc_qa_3k/AGIQA-3K/
-# 2) 官方 data.csv 放到 cache/data/aigc_qa_3k/
-python prepare_data.py
+# 1) 图片解压到 ../data/aigc_qa_3k/AGIQA-3K/
+# 2) 官方 data.csv 放到 ../data/aigc_qa_3k/
+python prepare_data.py   # 用 ../data/aigc_qa_3k/data.csv 生成 mos_joint.xlsx
 ```
 
 ## 运行实验（同一 seed 42，单次 80/20 hold-out）
@@ -93,7 +95,7 @@ newIdea/run/
   官方 100ep=`official_100ep`、官方 100ep@224=`official_100ep_224`。
 - 权重只保留 `checkpoint_best.pth`（最佳）和 `checkpoint_latest.pth`（最新），不再按
   `save_freq` 保留多个分 epoch 文件；`save_freq` 仅决定最新权重的刷新频率。
-- `*.pth` 与 `cache/` 体积大，已被 `.gitignore` 排除，不会推送到 git；`log.txt` / `result/` 正常入库。
+- `*.pth` 与 `data/` 体积大，已被 `.gitignore` 排除，不会推送到 git；`log.txt` / `result/` 正常入库。
 - 已跑实验结果汇总见 `../RESULTS.md`。
 
 ## 集成方式说明

@@ -1,6 +1,6 @@
 model:
   arch: "ipiqa"
-  base_ckpt: cache/ckpt/clip/openai/resnet/RN50.pt
+  base_ckpt: ../data/ckpt/clip/openai/resnet/RN50.pt
   input_resolution: 224
   output_dim: 2
   load_finetuned: False
@@ -11,8 +11,8 @@ model:
   qa_token: True
 
 dataset:
-  data_path: "cache/data/aigc_qa_3k/mos_joint.xlsx"
-  vis_root: "cache/data/aigc_qa_3k/AGIQA-3K/"
+  data_path: "../data/aigc_qa_3k/mos_joint.xlsx"
+  vis_root: "../data/aigc_qa_3k/AGIQA-3K/"
   transform_train:
     name: "image_train_processor"
     cfg:

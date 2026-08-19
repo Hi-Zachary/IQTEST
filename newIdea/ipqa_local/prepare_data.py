@@ -20,12 +20,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--csv",
-        default="cache/data/aigc_qa_3k/data.csv",
+        default="../data/aigc_qa_3k/data.csv",
         help="official AGIQA-3k data.csv",
     )
     parser.add_argument(
         "--out",
-        default="cache/data/aigc_qa_3k/mos_joint.xlsx",
+        default="../data/aigc_qa_3k/mos_joint.xlsx",
         help="output mos_joint.xlsx for IP-IQA",
     )
     args = parser.parse_args()

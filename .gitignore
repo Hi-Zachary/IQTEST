@@ -16,9 +16,8 @@ dist/
 *.tar
 *.gz
 
-# CLIP 权重与 AGIQA-3K 图片/标注 cache
-**/cache/
-**/ckpt/
+# 训练数据目录（RN50.pt + AGIQA-3K 图片/标注，体积大，不入库）
+newIdea/data/
 
 # ---- 环境 / IDE ----
 .ipynb_checkpoints/

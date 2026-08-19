@@ -16,7 +16,7 @@ class IPIQA(BaseModel):
     }
     def __init__(
                 self,
-                base_ckpt='', # your path for clip resnet (default in `ipiqa.yaml`: cache/ckpt/clip/openai/RN50.pt)
+                base_ckpt='', # your path for clip resnet (default in `ipiqa.yaml`: ../data/ckpt/clip/openai/resnet/RN50.pt)
                 input_resolution=512,
                 output_dim=None,
                 use_mlp_head=False,
@@ -140,7 +140,7 @@ class IPIQA(BaseModel):
 
     @classmethod
     def from_config(cls, cfg):
-        base_ckpt = cfg.get('base_ckpt','cache/ckpt/clip/openai/resnet/RN50.pt')
+        base_ckpt = cfg.get('base_ckpt','../data/ckpt/clip/openai/resnet/RN50.pt')
         input_resolution = cfg.get("input_resolution",512)
         output_dim = cfg.get("output_dim",None)
         freeze_text = cfg.get("freeze_text",True)
