@@ -82,15 +82,17 @@ python train_agiqa3k.py --cfg-path ipiqa/projects/agiqa3k/ipiqa_ours.yaml --seed
 ```
 newIdea/run/
 └── 20260819200_E0_baseline/       # job_id_时间戳 + 实验 tag
-    ├── log.txt                    # 每 epoch 训练/验证日志（含全部指标）
-    ├── checkpoint_{epoch}.pth     # 周期权重（git 忽略，仅本地）
-    ├── checkpoint_best.pth
+    ├── log.txt                    # 每 epoch 训练/验证日志（含全部指标，入库 git）
+    ├── checkpoint_best.pth        # 最佳权重（git 忽略，仅本地）
+    ├── checkpoint_latest.pth      # 最新权重，随训练覆盖更新（git 忽略，仅本地）
     └── result/                    # 指标输出
 ```
 
 - `trainer.py` 依据各配置的 `output_dir: "../run"` + `tag` 自动生成带时间戳的子目录。
 - 各配置 tag：E0=`E0_baseline`、E1=`E1_weighted`、E2=`E2_full`、
   官方 100ep=`official_100ep`、官方 100ep@224=`official_100ep_224`。
+- 权重只保留 `checkpoint_best.pth`（最佳）和 `checkpoint_latest.pth`（最新），不再按
+  `save_freq` 保留多个分 epoch 文件；`save_freq` 仅决定最新权重的刷新频率。
 - `*.pth` 与 `cache/` 体积大，已被 `.gitignore` 排除，不会推送到 git；`log.txt` / `result/` 正常入库。
 - 已跑实验结果汇总见 `../RESULTS.md`。
 

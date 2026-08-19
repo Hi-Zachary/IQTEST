@@ -20,10 +20,6 @@ dist/
 **/cache/
 **/ckpt/
 
-# 实验检查点（只留本地；log.txt / result 保留入库）
-**/run/*/checkpoint_*.pth
-**/run/*/checkpoint_best.pth
-
 # ---- 环境 / IDE ----
 .ipynb_checkpoints/
 .vscode/
