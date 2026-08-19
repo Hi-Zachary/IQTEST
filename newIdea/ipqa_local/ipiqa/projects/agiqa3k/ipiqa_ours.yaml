@@ -45,9 +45,9 @@ run:
   weight_decay: 0
   beta2: 0.999
 
-  batch_size: 8
-  batch_size_val: 16
-  num_worker: 8
+  batch_size: 32
+  batch_size_val: 32
+  num_worker: 12
 
   max_epoch: 20
   log_freq: 20

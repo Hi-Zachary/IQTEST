@@ -1,5 +1,0 @@
-model:
-  arch: ipiqa
-  base_ckpt: cache/ckpt/clip/openai/resnet/RN50.pt
-  input_resolution: 512
-  output_dim: null

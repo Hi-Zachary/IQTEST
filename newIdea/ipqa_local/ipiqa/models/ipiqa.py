@@ -28,6 +28,10 @@ class IPIQA(BaseModel):
                 local_hidden_dim=256,
                 local_gate_init=-2.0,
                 local_use_attention=True,
+                local_branch_type="weighted",
+                ms_num_heads=4,
+                ms_mlp_ratio=2.0,
+                ms_refine_gate_init=-2.0,
         ):
         super().__init__()
         clip_ckpt = clip.load(base_ckpt, device="cpu")[0]
@@ -73,8 +77,12 @@ class IPIQA(BaseModel):
                 spatial_dim=(input_resolution // 32) ** 2,
                 gate_init=local_gate_init,
                 use_attention=local_use_attention,
+                branch_type=local_branch_type,
+                ms_num_heads=ms_num_heads,
+                ms_mlp_ratio=ms_mlp_ratio,
+                ms_refine_gate_init=ms_refine_gate_init,
             )
-            print('use_local_branch: True (GatedLocalFusion injected)')
+            print(f'use_local_branch: True (GatedLocalFusion injected, branch_type={local_branch_type})')
         else:
             self.local_fusion = None
 
@@ -152,6 +160,10 @@ class IPIQA(BaseModel):
         local_hidden_dim = cfg.get('local_hidden_dim',256)
         local_gate_init = cfg.get('local_gate_init',-2.0)
         local_use_attention = cfg.get('local_use_attention',True)
+        local_branch_type = cfg.get('local_branch_type','weighted')
+        ms_num_heads = cfg.get('ms_num_heads',4)
+        ms_mlp_ratio = cfg.get('ms_mlp_ratio',2.0)
+        ms_refine_gate_init = cfg.get('ms_refine_gate_init',-2.0)
 
         model = cls(
                 base_ckpt=base_ckpt,
@@ -166,6 +178,10 @@ class IPIQA(BaseModel):
                 local_hidden_dim=local_hidden_dim,
                 local_gate_init=local_gate_init,
                 local_use_attention=local_use_attention,
+                local_branch_type=local_branch_type,
+                ms_num_heads=ms_num_heads,
+                ms_mlp_ratio=ms_mlp_ratio,
+                ms_refine_gate_init=ms_refine_gate_init,
             )
 
         load_finetuned = cfg.get("load_finetuned",False)  # you've loaded the clip weight in `__init__` func

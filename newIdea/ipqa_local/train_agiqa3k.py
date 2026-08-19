@@ -71,13 +71,20 @@ def get_datasets(config,transforms) -> dict:
         count = int(0.8 * 300)
 
         split_file = config.run.get("split_file", None)
-        if split_file and os.path.exists(split_file):
-            # 固定划分：直接加载已保存的 seed42 划分，不再随机重排
+        if split_file:
+            # 固定划分协议：直接加载已保存的划分，与 seed 完全解耦。
+            # 配置了 split_file 就必须存在，绝不回退到随机划分。
+            if not os.path.exists(split_file):
+                raise FileNotFoundError(
+                    f"split_file configured but not found: {split_file} "
+                    f"(run with --seed will NOT be used for the split)"
+                )
             with open(split_file) as f:
                 split = json.load(f)
             assignment = split["assignment"]
             indices = None
         else:
+            # 未配置 split_file（如 AGIQA-1K 等无固定协议的脚本）：按 seed 随机划分
             assignment = None
             indices = np.random.permutation(300)
 

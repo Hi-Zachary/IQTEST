@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 
 from .local_distortion import LocalDistortionBranch
+from .ms_dual_local import MSLocalQualityBranch
 
 
 class GatedLocalFusion(nn.Module):
@@ -30,19 +31,36 @@ class GatedLocalFusion(nn.Module):
                      the gate learn how much to trust the local branch.
         drop:        dropout probability in the local branch heads.
         use_attention: keep the transpose-attention block (Full Ours) or drop it
-                       (weighted-local ablation). See the plan, section 13.
+                       (weighted-local ablation). Only used by branch_type
+                       ``weighted``. See the plan, section 13.
+        branch_type: "weighted" (validated E1) or "msda" (MS-SCANet-inspired
+                     multi-scale dual-attention refiner). Config-driven so E1
+                     always stays recoverable.
+        ms_num_heads / ms_mlp_ratio / ms_refine_gate_init: MSDA branch options.
     """
 
     def __init__(self, in_channels=2048, hidden_dim=256, spatial_dim=256,
-                 gate_init=-2.0, drop=0.1, use_attention=True):
+                 gate_init=-2.0, drop=0.1, use_attention=True,
+                 branch_type="weighted",
+                 ms_num_heads=4, ms_mlp_ratio=2.0, ms_refine_gate_init=-2.0):
         super().__init__()
-        self.local_branch = LocalDistortionBranch(
-            in_channels=in_channels,
-            hidden_dim=hidden_dim,
-            spatial_dim=spatial_dim,
-            drop=drop,
-            use_attention=use_attention,
-        )
+        if branch_type == "msda":
+            self.local_branch = MSLocalQualityBranch(
+                in_channels=in_channels,
+                dim=hidden_dim,
+                num_heads=ms_num_heads,
+                mlp_ratio=ms_mlp_ratio,
+                drop=drop,
+                refine_gate_init=ms_refine_gate_init,
+            )
+        else:  # "weighted" (default, validated E1)
+            self.local_branch = LocalDistortionBranch(
+                in_channels=in_channels,
+                hidden_dim=hidden_dim,
+                spatial_dim=spatial_dim,
+                drop=drop,
+                use_attention=use_attention,
+            )
         self.local_gate_logit = nn.Parameter(torch.tensor(float(gate_init)))
 
     def forward(self, base_output, spatial_feat):
