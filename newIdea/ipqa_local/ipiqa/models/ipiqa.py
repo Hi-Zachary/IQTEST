@@ -1,3 +1,4 @@
+import os
 import clip
 import torch.nn as nn
 import torch
@@ -114,36 +115,59 @@ class IPIQA(BaseModel):
         return x
 
     def get_optimizer_params(self, weight_decay, lr_scale=1):
-        p_wd, p_non_wd = [], []
-        if self.head_scale:
-            p_head = []
-            p_head_non_wd = []
+        # 分组学习率（调整2）：
+        #   Group A  IP-IQA backbone / original head      lr_scale = lr_scale (1x)
+        #   Group B  E1-inherited local (proj/score/weight) lr_scale = 3x
+        #   Group C  new random-init MSDA blocks            lr_scale = 10x
+        #   Group D  gates (refine + outer)                 lr_scale = 10x
+        #   original head 额外按 self.head_scale 放大（若开启）
+        base_wd, base_nowd = [], []
+        local_b_wd, local_b_nowd = [], []
+        msda_wd, msda_nowd = [], []
+        gate_params = []
+        p_head, p_head_non_wd = [], []
+
         for n, p in self.named_parameters():
             if not p.requires_grad:
                 continue  # frozen weights
-            if self.head_scale and 'head' in n:
-                if p.ndim < 2 or "bias" in n or "ln" in n or "bn" in n:
-                    p_head_non_wd.append(p)
-                else:
-                    p_head.append(p)
+            is_head = self.head_scale and n.startswith("head")
+            is_nowd = p.ndim < 2 or "bias" in n or "ln" in n or "bn" in n
+            if is_head:
+                (p_head_non_wd if is_nowd else p_head).append(p)
+            elif "refine_gate_logit" in n or "local_gate_logit" in n:
+                gate_params.append(p)
+            elif any(k in n for k in (
+                "fine_channel", "coarse_channel",
+                "fine_spatial", "coarse_spatial",
+                ".cross.", ".fuse.",
+            )):
+                (msda_nowd if is_nowd else msda_wd).append(p)
+            elif "local_fusion" in n and (
+                "proj" in n or "score_head" in n or "weight_head" in n
+            ):
+                (local_b_nowd if is_nowd else local_b_wd).append(p)
             else:
-                if p.ndim < 2 or "bias" in n or "ln" in n or "bn" in n:
-                    p_non_wd.append(p)
-                else:
-                    p_wd.append(p)
+                (base_nowd if is_nowd else base_wd).append(p)
+
+        optim_params = [
+            {"params": base_wd, "weight_decay": weight_decay, "lr_scale": lr_scale},
+            {"params": base_nowd, "weight_decay": 0, "lr_scale": lr_scale},
+            {"params": local_b_wd, "weight_decay": weight_decay, "lr_scale": 3.0 * lr_scale},
+            {"params": local_b_nowd, "weight_decay": 0, "lr_scale": 3.0 * lr_scale},
+            {"params": msda_wd, "weight_decay": weight_decay, "lr_scale": 10.0 * lr_scale},
+            {"params": msda_nowd, "weight_decay": 0, "lr_scale": 10.0 * lr_scale},
+            {"params": gate_params, "weight_decay": 0, "lr_scale": 10.0 * lr_scale},
+        ]
         if self.head_scale:
-            optim_params = [
-                {"params": p_wd, "weight_decay": weight_decay, "lr_scale": lr_scale},
-                {"params": p_non_wd, "weight_decay": 0, "lr_scale": lr_scale},
-                {"params": p_head, "weight_decay": weight_decay, "lr_scale": self.head_scale},
-                {"params": p_head_non_wd, "weight_decay": 0, "lr_scale": self.head_scale},
-            ]
+            optim_params.append(
+                {"params": p_head, "weight_decay": weight_decay, "lr_scale": self.head_scale}
+            )
+            optim_params.append(
+                {"params": p_head_non_wd, "weight_decay": 0, "lr_scale": self.head_scale}
+            )
             print(f"head scale: {self.head_scale}")
-        else:
-            optim_params = [
-                {"params": p_wd, "weight_decay": weight_decay, "lr_scale": lr_scale},
-                {"params": p_non_wd, "weight_decay": 0, "lr_scale": lr_scale},
-            ]
+        # 过滤空参数组，避免 AdamW 报错
+        optim_params = [g for g in optim_params if len(g["params"]) > 0]
         return optim_params
 
     @classmethod
@@ -187,5 +211,36 @@ class IPIQA(BaseModel):
         load_finetuned = cfg.get("load_finetuned",False)  # you've loaded the clip weight in `__init__` func
         if load_finetuned:
             model.load_checkpoint_from_config(cfg)
+
+        # 调整2：从已验证的 E1 checkpoint warm start（只加载 backbone/head/local 预测头，
+        # 新增的 MSDA refinement 保持随机初始化；手动映射 E1 proj -> refiner.proj）
+        warm_start_e1 = cfg.get("warm_start_e1", False)
+        warm_start_ckpt = cfg.get("warm_start_ckpt", None)
+        if warm_start_e1:
+            assert warm_start_ckpt and os.path.exists(warm_start_ckpt), (
+                f"warm_start_ckpt not found: {warm_start_ckpt}"
+            )
+            ckpt = torch.load(warm_start_ckpt, map_location="cpu")
+            sd = ckpt["model"]
+            missing, unexpected = model.load_state_dict(sd, strict=False)
+
+            # 手动映射 E1 的 local_branch.proj -> E3 的 refiner.proj（结构同为 Sequential(Conv2d, GELU)）
+            e1_proj_keys = [
+                k for k in sd if k.startswith("local_fusion.local_branch.proj.")
+            ]
+            if e1_proj_keys:
+                proj_sd = {
+                    k.split("local_branch.proj.", 1)[1]: sd[k] for k in e1_proj_keys
+                }
+                branch = model.local_fusion.local_branch
+                if hasattr(branch, "refiner"):
+                    branch.refiner.proj.load_state_dict(proj_sd)
+                    print("[warm_start_e1] copied E1 proj -> refiner.proj")
+                else:
+                    print("[warm_start_e1] WARNING: branch has no refiner, proj NOT copied")
+
+            print(f"[warm_start_e1] loaded from {warm_start_ckpt}")
+            print(f"[warm_start_e1] missing keys ({len(missing)}): {missing[:6]}")
+            print(f"[warm_start_e1] unexpected keys ({len(unexpected)}): {unexpected[:6]}")
 
         return model

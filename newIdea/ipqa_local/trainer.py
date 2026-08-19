@@ -309,6 +309,30 @@ class Trainer:
         with open(os.path.join(self.output_dir, "log.txt"), "a") as f:
             f.write(json.dumps(OmegaConf.to_container(self.config), indent=4) + "\n")
 
+    @main_process
+    def log_local_gates(self, cur_epoch):
+        """每个 epoch 记录 local fusion 外层 gate 与 MSDA refine gate（调整2）。"""
+        model = self.unwrap_dist_model(self.model)
+        fusion = getattr(model, "local_fusion", None)
+        if fusion is None:
+            return
+        out = {"epoch": cur_epoch}
+        if hasattr(fusion, "local_gate_logit"):
+            out["outer_gate"] = round(
+                torch.sigmoid(fusion.local_gate_logit).detach().float().item(), 4
+            )
+        branch = getattr(fusion, "local_branch", None)
+        if branch is not None and hasattr(branch, "refiner"):
+            rg = getattr(branch.refiner, "refine_gate_logit", None)
+            if rg is not None:
+                out["refine_gate"] = round(
+                    torch.sigmoid(rg).detach().float().item(), 4
+                )
+        if len(out) > 1:
+            logging.info("local gates: " + json.dumps(out))
+            with open(os.path.join(self.output_dir, "log.txt"), "a") as f:
+                f.write(json.dumps(out) + "\n")
+
     @torch.no_grad()
     def eval_epoch(self, cur_epoch, skip_reload=False):
         """
@@ -367,6 +391,7 @@ class Trainer:
                 #     )
                 train_stats = self.train_epoch(cur_epoch)
                 self.log_stats(split_name="train", stats=train_stats)
+                self.log_local_gates(cur_epoch)
 
             # evaluation phase
             if cur_epoch % self.eval_freq == 0 or cur_epoch == self.max_epoch -1:
