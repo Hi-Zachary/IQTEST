@@ -48,7 +48,8 @@ run:
   accum_grad_iters: 1
   grad_norm_clip: null
 
-  output_dir: "output/agiqa3k/ipiqa_224"
+  output_dir: "../run"
+  tag: "official_100ep_224"
 
   evaluate: False
   eval_freq: 1

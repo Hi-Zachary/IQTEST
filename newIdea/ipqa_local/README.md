@@ -20,9 +20,7 @@ ipqa_local/
 │       ├── ipiqa_quick.yaml       # E0: baseline（20 epoch quick）
 │       ├── ipiqa_ours.yaml        # E2: Full Ours
 │       └── ipiqa_ours_noattn.yaml # E1: +Weighted Local（无 attention）
-├── run/                          # 每次实验的输出（见"运行结果"）
-│   └── <job_id>_<tag>/           #   带时间戳的文件夹：log.txt / checkpoint / result
-├── cache/
+├── cache/                         # RN50.pt + AGIQA-3K 图片/标注（git 忽略）
 │   ├── ckpt/clip/openai/resnet/RN50.pt   # CLIP RN50 权重
 │   └── data/aigc_qa_3k/
 │       ├── AGIQA-3K/                     # 2982 张图片
@@ -78,10 +76,11 @@ python train_agiqa3k.py --cfg-path ipiqa/projects/agiqa3k/ipiqa_ours.yaml --seed
 
 ## 运行结果（run/ 约定）
 
-每次实验的日志、模型权重、指标统一保存到 `run/<job_id>_<tag>/`：
+每次实验的日志、模型权重、指标统一保存到 `../run/<job_id>_<tag>/`
+（即工程根目录 `newIdea/run/`）：
 
 ```
-run/
+newIdea/run/
 └── 20260819200_E0_baseline/       # job_id_时间戳 + 实验 tag
     ├── log.txt                    # 每 epoch 训练/验证日志（含全部指标）
     ├── checkpoint_{epoch}.pth     # 周期权重（git 忽略，仅本地）
@@ -89,8 +88,9 @@ run/
     └── result/                    # 指标输出
 ```
 
-- `trainer.py` 依据各配置的 `output_dir: "run"` + `tag` 自动生成带时间戳的子目录。
-- 各配置 tag：E0=`E0_baseline`、E1=`E1_weighted`、E2=`E2_full`、官方 100ep=`official_100ep`。
+- `trainer.py` 依据各配置的 `output_dir: "../run"` + `tag` 自动生成带时间戳的子目录。
+- 各配置 tag：E0=`E0_baseline`、E1=`E1_weighted`、E2=`E2_full`、
+  官方 100ep=`official_100ep`、官方 100ep@224=`official_100ep_224`。
 - `*.pth` 与 `cache/` 体积大，已被 `.gitignore` 排除，不会推送到 git；`log.txt` / `result/` 正常入库。
 - 已跑实验结果汇总见 `../RESULTS.md`。
 

@@ -54,7 +54,7 @@ run:
   accum_grad_iters: 1
   grad_norm_clip: null
 
-  output_dir: "run"
+  output_dir: "../run"
   tag: "E0_baseline"
 
   evaluate: False

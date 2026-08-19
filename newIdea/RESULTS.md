@@ -40,4 +40,4 @@ python train_agiqa3k.py --cfg-path ipiqa/projects/agiqa3k/ipiqa_ours_noattn.yaml
 python train_agiqa3k.py --cfg-path ipiqa/projects/agiqa3k/ipiqa_ours.yaml --seed 42 --num_cv 1
 ```
 
-每次实验的日志 / 权重 / 指标保存在 `ipqa_local/run/<job_id>_<tag>/`。
+每次实验的日志 / 权重 / 指标保存在 `run/<job_id>_<tag>/`（`ipqa_local` 的上级目录 `newIdea/run/`）。
