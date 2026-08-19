@@ -1,0 +1,67 @@
+# E2: Full Ours (quick) — IP-IQA + 局部失真分支（attention + patch score/weight）
+# 其余超参与 E0 baseline 完全一致（同 seed、同划分、同 epoch、同 LR）。
+model:
+  arch: "ipiqa"
+  base_ckpt: cache/ckpt/clip/openai/resnet/RN50.pt
+  input_resolution: 512
+  output_dim: 2
+  load_finetuned: False
+  head_scale: 10.
+  use_mlp_head: True
+  dropout_rate: 0.5
+  freeze_text: True
+  qa_token: True
+
+  # --- ours: local distortion branch ---
+  use_local_branch: True         # Full Ours
+  local_hidden_dim: 256
+  local_gate_init: -2.0
+  local_use_attention: True      # E2: 保留 attention
+
+dataset:
+  data_path: "cache/data/aigc_qa_3k/mos_joint.xlsx"
+  vis_root: "cache/data/aigc_qa_3k/AGIQA-3K/"
+  transform_train:
+    name: "image_train_processor"
+    cfg:
+      image_size: 512
+  transform_val:
+    name: "image_eval_processor"
+    cfg:
+      image_size: 512
+
+run:
+  task: "agiqa_doublescore"
+  resume_ckpt_path: null
+
+  lr_sched: "constant_lr"
+  lr_decay_rate: null
+  warmup_lr: -1
+  warmup_steps: 0
+  min_lr: 1e-5
+
+  init_lr: 1e-5
+  lr_layer_decay: 1
+  weight_decay: 0
+  beta2: 0.999
+
+  batch_size: 8
+  batch_size_val: 16
+  num_worker: 8
+
+  max_epoch: 20
+  log_freq: 20
+  accum_grad_iters: 1
+  grad_norm_clip: null
+
+  output_dir: "run"
+  tag: "E2_full"
+
+  evaluate: False
+  eval_freq: 1
+  save_freq: 5
+
+  amp: True
+  device: "cuda"
+  distributed: False
+  dist_url: "env://"

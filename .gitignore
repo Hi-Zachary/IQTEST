@@ -1,0 +1,35 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+
+# ---- 大体积文件：权重 / 数据 / 检查点（GitHub 单文件 >100MB 会被拒） ----
+*.pth
+*.pt
+*.safetensors
+*.bin
+*.zip
+*.tar
+*.gz
+
+# CLIP 权重与 AGIQA-3K 图片/标注 cache
+**/cache/
+**/ckpt/
+
+# 实验检查点（只留本地；log.txt / result 保留入库）
+**/run/*/checkpoint_*.pth
+**/run/*/checkpoint_best.pth
+
+# ---- 环境 / IDE ----
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+nohup.out
+
+# ---- 其它 ----
+*.log
