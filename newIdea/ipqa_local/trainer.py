@@ -373,6 +373,9 @@ class Trainer:
         best_epoch = 0
         best_metrics = {}
 
+        # 消融方案第 37 节：按 best_quality = argmax(SRCC_qual + PLCC_qual) 选 checkpoint
+        best_criterion = self.config.run.get("best_criterion", "joint")
+
         self.log_config()
 
         # resume from checkpoint if specified
@@ -407,8 +410,13 @@ class Trainer:
                         ), "No agg_metrics found in validation log."
 
                         agg_metrics = val_log["agg_metrics"]
-                        if agg_metrics > best_agg_metric:
-                            best_epoch, best_agg_metric = cur_epoch, agg_metrics
+                        if best_criterion == "quality":
+                            # 只用 perceptual quality 选 best（消融方案第 37/38 节）
+                            score = val_log.get("qual_SROCC", 0.0) + val_log.get("qual_PLCC", 0.0)
+                        else:
+                            score = agg_metrics
+                        if score > best_agg_metric:
+                            best_epoch, best_agg_metric = cur_epoch, score
                             best_metrics = deepcopy(val_log)
 
                             self._save_checkpoint(cur_epoch, is_best=True)

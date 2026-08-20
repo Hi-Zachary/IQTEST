@@ -33,6 +33,8 @@ class IPIQA(BaseModel):
                 ms_num_heads=4,
                 ms_mlp_ratio=2.0,
                 ms_refine_gate_init=-2.0,
+                ms_use_dual_attention=True,
+                ms_aggregation="weighted",
         ):
         super().__init__()
         clip_ckpt = clip.load(base_ckpt, device="cpu")[0]
@@ -82,6 +84,8 @@ class IPIQA(BaseModel):
                 ms_num_heads=ms_num_heads,
                 ms_mlp_ratio=ms_mlp_ratio,
                 ms_refine_gate_init=ms_refine_gate_init,
+                ms_use_dual_attention=ms_use_dual_attention,
+                ms_aggregation=ms_aggregation,
             )
             print(f'use_local_branch: True (GatedLocalFusion injected, branch_type={local_branch_type})')
         else:
@@ -188,6 +192,8 @@ class IPIQA(BaseModel):
         ms_num_heads = cfg.get('ms_num_heads',4)
         ms_mlp_ratio = cfg.get('ms_mlp_ratio',2.0)
         ms_refine_gate_init = cfg.get('ms_refine_gate_init',-2.0)
+        ms_use_dual_attention = cfg.get('ms_use_dual_attention',True)
+        ms_aggregation = cfg.get('ms_aggregation','weighted')
 
         model = cls(
                 base_ckpt=base_ckpt,
@@ -206,6 +212,8 @@ class IPIQA(BaseModel):
                 ms_num_heads=ms_num_heads,
                 ms_mlp_ratio=ms_mlp_ratio,
                 ms_refine_gate_init=ms_refine_gate_init,
+                ms_use_dual_attention=ms_use_dual_attention,
+                ms_aggregation=ms_aggregation,
             )
 
         load_finetuned = cfg.get("load_finetuned",False)  # you've loaded the clip weight in `__init__` func

@@ -1,19 +1,18 @@
 """Multi-Scale Dual-Attention local quality branch for IP-IQA.
 
 Inspired by MS-SCANet (ICASSP 2025, github.com/mithila442/MS-SCANet): we adapt
-its multi-scale dual-attention idea (channel attention + spatial attention +
-cross-branch attention) to IP-IQA's CLIP spatial feature, without adding a
-second backbone or copying the full MS-SCANet network.
+its multi-scale dual-attention idea (channel attention + spatial attention) to
+IP-IQA's CLIP spatial feature, without adding a second backbone or copying the
+full MS-SCANet network.  Cross-Branch Attention 已移除（见 完整消融方案.md）。
 
 Structure (from ``feat = [B, 2048, H, W]``):
     f0 = 1x1 conv (2048 -> dim)
     fine   = f0                      (H x W tokens)
     coarse = avg_pool2d(f0, 2)       (H/2 x W/2 tokens)
-    fine/coarse -> ChannelBlock -> SpatialBlock
-    -> CrossBranchAttention (fine <-> coarse)
+    (可选) fine/coarse -> ChannelBlock -> SpatialBlock   [use_dual_attention]
     -> coarse upsample -> concat -> 1x1 fuse
     -> residual-gated refinement: f0 + sigmoid(gate) * delta
-    -> patch score/weight -> weighted average -> q_local
+    -> patch score (+ weight) -> mean / weighted-average -> q_local
 
 Only depends on ``torch``.
 """
@@ -109,54 +108,31 @@ class SpatialBlock(nn.Module):
         return x
 
 
-class CrossBranchAttention(nn.Module):
-    """Bidirectional cross-attention between fine and coarse branches.
+class MSDualAttentionRefiner(nn.Module):
+    """Multi-scale dual-attention feature refiner on CLIP spatial features.
 
-    Fine attends to coarse (and vice versa), then both get a residual update.
+    NOTE: Cross-Branch Attention 已移除（见 完整消融方案.md）。
+    fine / coarse 各自独立做 channel + spatial attention 后，直接
+    resize + concat + 1x1 fuse 完成多尺度融合。
     """
 
-    def __init__(self, dim=256, num_heads=4, drop=0.1):
-        super().__init__()
-        self.norm_f = nn.LayerNorm(dim)
-        self.norm_c = nn.LayerNorm(dim)
-        self.f_to_c = nn.MultiheadAttention(
-            embed_dim=dim, num_heads=num_heads, dropout=drop, batch_first=True
-        )
-        self.c_to_f = nn.MultiheadAttention(
-            embed_dim=dim, num_heads=num_heads, dropout=drop, batch_first=True
-        )
-
-    def forward(self, fine, coarse):
-        # fine: [B, Nf, D], coarse: [B, Nc, D]
-        f = self.norm_f(fine)
-        c = self.norm_c(coarse)
-
-        fine_delta, _ = self.f_to_c(f, c, c)   # fine queries coarse
-        coarse_delta, _ = self.c_to_f(c, f, f) # coarse queries fine
-
-        return fine + fine_delta, coarse + coarse_delta
-
-
-class MSDualAttentionRefiner(nn.Module):
-    """Multi-scale dual-attention feature refiner on CLIP spatial features."""
-
     def __init__(self, in_channels=2048, dim=256, num_heads=4, mlp_ratio=2.0,
-                 drop=0.1, refine_gate_init=-2.0):
+                 drop=0.1, refine_gate_init=-2.0, use_dual_attention=True):
         super().__init__()
         self.dim = dim
+        self.use_dual_attention = use_dual_attention
 
         self.proj = nn.Sequential(
             nn.Conv2d(in_channels, dim, kernel_size=1),
             nn.GELU(),
         )
 
-        self.fine_channel = ChannelBlock(dim, mlp_ratio, drop)
-        self.coarse_channel = ChannelBlock(dim, mlp_ratio, drop)
+        if use_dual_attention:
+            self.fine_channel = ChannelBlock(dim, mlp_ratio, drop)
+            self.coarse_channel = ChannelBlock(dim, mlp_ratio, drop)
 
-        self.fine_spatial = SpatialBlock(dim, num_heads, mlp_ratio, drop)
-        self.coarse_spatial = SpatialBlock(dim, num_heads, mlp_ratio, drop)
-
-        self.cross = CrossBranchAttention(dim, num_heads, drop)
+            self.fine_spatial = SpatialBlock(dim, num_heads, mlp_ratio, drop)
+            self.coarse_spatial = SpatialBlock(dim, num_heads, mlp_ratio, drop)
 
         self.fuse = nn.Sequential(
             nn.Conv2d(dim * 2, dim, kernel_size=1),
@@ -171,21 +147,24 @@ class MSDualAttentionRefiner(nn.Module):
         f0 = self.proj(feat)                          # [B, dim, H, W]
         B, C, H, W = f0.shape
 
-        fine_map = f0
-        coarse_map = F.avg_pool2d(f0, kernel_size=2)  # [B, dim, H//2, W//2]
+        if self.use_dual_attention:
+            fine_map = f0
+            coarse_map = F.avg_pool2d(f0, kernel_size=2)  # [B, dim, H//2, W//2]
 
-        fine = fine_map.flatten(2).transpose(1, 2)    # [B, H*W, dim]
-        coarse = coarse_map.flatten(2).transpose(1, 2)  # [B, H/2*W/2, dim]
+            fine = fine_map.flatten(2).transpose(1, 2)    # [B, H*W, dim]
+            coarse = coarse_map.flatten(2).transpose(1, 2)  # [B, H/2*W/2, dim]
 
-        fine = self.fine_channel(fine)
-        fine = self.fine_spatial(fine)
-        coarse = self.coarse_channel(coarse)
-        coarse = self.coarse_spatial(coarse)
+            fine = self.fine_channel(fine)
+            fine = self.fine_spatial(fine)
+            coarse = self.coarse_channel(coarse)
+            coarse = self.coarse_spatial(coarse)
 
-        fine, coarse = self.cross(fine, coarse)
-
-        fine_map = fine.transpose(1, 2).reshape(B, C, H, W)
-        coarse_map = coarse.transpose(1, 2).reshape(B, C, H // 2, W // 2)
+            fine_map = fine.transpose(1, 2).reshape(B, C, H, W)
+            coarse_map = coarse.transpose(1, 2).reshape(B, C, H // 2, W // 2)
+        else:
+            # A1：仅多尺度，无 dual attention
+            fine_map = f0
+            coarse_map = F.avg_pool2d(f0, kernel_size=2)
 
         coarse_up = F.interpolate(
             coarse_map, size=(H, W), mode="bilinear", align_corners=False
@@ -198,11 +177,19 @@ class MSDualAttentionRefiner(nn.Module):
 
 
 class MSLocalQualityBranch(nn.Module):
-    """MS-SCANet-inspired refiner + AM-BQA-style patch score/weight head."""
+    """Multi-scale dual-attention refiner + patch score/(weight) head.
+
+    Args:
+        aggregation: "weighted" -> importance-aware weighted average (创新点3),
+                     "mean"     -> plain mean of patch scores (A1/A2 用).
+    """
 
     def __init__(self, in_channels=2048, dim=256, num_heads=4, mlp_ratio=2.0,
-                 drop=0.1, refine_gate_init=-2.0):
+                 drop=0.1, refine_gate_init=-2.0, use_dual_attention=True,
+                 aggregation="weighted"):
         super().__init__()
+        self.aggregation = aggregation
+
         self.refiner = MSDualAttentionRefiner(
             in_channels=in_channels,
             dim=dim,
@@ -210,6 +197,7 @@ class MSLocalQualityBranch(nn.Module):
             mlp_ratio=mlp_ratio,
             drop=drop,
             refine_gate_init=refine_gate_init,
+            use_dual_attention=use_dual_attention,
         )
 
         self.score_head = nn.Sequential(
@@ -219,13 +207,16 @@ class MSLocalQualityBranch(nn.Module):
             nn.Linear(128, 1),
         )
 
-        self.weight_head = nn.Sequential(
-            nn.Linear(dim, 128),
-            nn.GELU(),
-            nn.Dropout(drop),
-            nn.Linear(128, 1),
-            nn.Sigmoid(),
-        )
+        if aggregation == "weighted":
+            self.weight_head = nn.Sequential(
+                nn.Linear(dim, 128),
+                nn.GELU(),
+                nn.Dropout(drop),
+                nn.Linear(128, 1),
+                nn.Sigmoid(),
+            )
+        else:
+            self.weight_head = None
 
     def forward(self, feat):
         # feat: [B, 2048, H, W]
@@ -233,9 +224,12 @@ class MSLocalQualityBranch(nn.Module):
         x = x.flatten(2).transpose(1, 2)          # [B, N, dim]
 
         patch_score = self.score_head(x)          # [B, N, 1]
-        patch_weight = self.weight_head(x)        # [B, N, 1]
 
-        q_local = (patch_score * patch_weight).sum(dim=1) / \
-                  (patch_weight.sum(dim=1) + 1e-6)         # [B, 1]
+        if self.aggregation == "weighted":
+            patch_weight = self.weight_head(x)    # [B, N, 1]
+            q_local = (patch_score * patch_weight).sum(dim=1) / \
+                      (patch_weight.sum(dim=1) + 1e-6)       # [B, 1]
+        else:  # "mean"
+            q_local = patch_score.mean(dim=1)     # [B, 1]
 
         return q_local

@@ -1,0 +1,82 @@
+# A1（AGIQA-3K 消融）：+ Multi-Scale，无 dual attention，patch score mean
+# 单阶段：从 CLIP base_ckpt 直接训练完整模型（不 staging、不 warm-start 权重）
+# LR 用 warmup + cosine（替代单独 20ep warm-up 阶段）：
+#   - 前 1 epoch 线性 warmup（0 -> init_lr，分组后 MSDA 10x 等）
+#   - 之后 cosine 衰减到 min_lr=1e-6
+# 分组 LR 保持（backbone 1x / E1-local 3x / 新 MSDA 10x / gates 10x）
+# seed42 固定划分 / batch 32 / 512 / 100 epoch
+model:
+  arch: "ipiqa"
+  base_ckpt: ../data/ckpt/clip/openai/resnet/RN50.pt
+  input_resolution: 512
+  output_dim: 2
+  load_finetuned: False
+  head_scale: 10.
+  use_mlp_head: True
+  dropout_rate: 0.5
+  freeze_text: True
+  qa_token: True
+
+  # --- ours: local distortion branch ---
+  use_local_branch: True
+  local_branch_type: "msda"       # 多尺度双注意力局部分支
+  local_hidden_dim: 256
+  local_gate_init: -2.0
+  local_use_attention: False      # 仅 weighted 分支使用，msda 下忽略
+
+  # --- MSDA branch options ---
+  ms_num_heads: 4
+  ms_mlp_ratio: 2.0
+  ms_refine_gate_init: -1.0
+  ms_use_dual_attention: False
+  ms_aggregation: "mean"
+
+dataset:
+  data_path: "../data/aigc_qa_3k/mos_joint.xlsx"
+  vis_root: "../data/aigc_qa_3k/AGIQA-3K/"
+  transform_train:
+    name: "image_train_processor"
+    cfg:
+      image_size: 512
+  transform_val:
+    name: "image_eval_processor"
+    cfg:
+      image_size: 512
+
+run:
+  task: "agiqa_doublescore"
+  resume_ckpt_path: null
+
+  lr_sched: "linear_warmup_cosine_lr"
+  lr_decay_rate: null
+  warmup_lr: 0
+  warmup_steps: 75             # 约 1 epoch（2383/32≈75 iters）
+  min_lr: 1e-6
+
+  init_lr: 1e-5
+  lr_layer_decay: 1
+  weight_decay: 0
+  beta2: 0.999
+
+  batch_size: 32
+  batch_size_val: 32
+  num_worker: 12
+
+  max_epoch: 100
+  log_freq: 20
+  accum_grad_iters: 1
+  grad_norm_clip: null
+
+  split_file: "splits/seed42.json"
+  output_dir: "../run"
+  best_criterion: "quality"
+  tag: "A1_ms"
+
+  evaluate: False
+  eval_freq: 1
+  save_freq: 5
+
+  amp: True
+  device: "cuda"
+  distributed: False
+  dist_url: "env://"

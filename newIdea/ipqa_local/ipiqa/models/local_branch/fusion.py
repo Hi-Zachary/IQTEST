@@ -42,7 +42,8 @@ class GatedLocalFusion(nn.Module):
     def __init__(self, in_channels=2048, hidden_dim=256, spatial_dim=256,
                  gate_init=-2.0, drop=0.1, use_attention=True,
                  branch_type="weighted",
-                 ms_num_heads=4, ms_mlp_ratio=2.0, ms_refine_gate_init=-2.0):
+                 ms_num_heads=4, ms_mlp_ratio=2.0, ms_refine_gate_init=-2.0,
+                 ms_use_dual_attention=True, ms_aggregation="weighted"):
         super().__init__()
         if branch_type == "msda":
             self.local_branch = MSLocalQualityBranch(
@@ -52,6 +53,8 @@ class GatedLocalFusion(nn.Module):
                 mlp_ratio=ms_mlp_ratio,
                 drop=drop,
                 refine_gate_init=ms_refine_gate_init,
+                use_dual_attention=ms_use_dual_attention,
+                aggregation=ms_aggregation,
             )
         else:  # "weighted" (default, validated E1)
             self.local_branch = LocalDistortionBranch(

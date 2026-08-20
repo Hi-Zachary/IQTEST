@@ -4,7 +4,6 @@ from .ms_dual_local import (
     MSDualAttentionRefiner,
     ChannelBlock,
     SpatialBlock,
-    CrossBranchAttention,
 )
 from .fusion import GatedLocalFusion
 
@@ -15,6 +14,5 @@ __all__ = [
     "MSDualAttentionRefiner",
     "ChannelBlock",
     "SpatialBlock",
-    "CrossBranchAttention",
     "GatedLocalFusion",
 ]
